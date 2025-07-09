@@ -3,6 +3,42 @@ const chatForm = document.getElementById("chatForm");
 const userInput = document.getElementById("userInput");
 const chatWindow = document.getElementById("chatWindow");
 
+// Worker URL - this will be your deployed Cloudflare Worker endpoint
+const WORKER_URL = "https://lorealchatbot.cxmedina12.workers.dev/";
+
+// Test function to check if Worker is responding
+async function testWorkerConnection() {
+  try {
+    console.log("🔍 Testing Worker connection...");
+
+    // Simple test request to see if Worker responds
+    const response = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: "test connection",
+      }),
+    });
+
+    console.log("✅ Worker responded with status:", response.status);
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("✅ Worker response data:", data);
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.log("❌ Worker error response:", errorText);
+      return false;
+    }
+  } catch (error) {
+    console.log("❌ Failed to connect to Worker:", error.message);
+    return false;
+  }
+}
+
 // Initialize chat with welcome message
 function initializeChat() {
   // Clear the chat window
@@ -180,7 +216,7 @@ function isBeautyRelated(message) {
   return true;
 }
 
-// Function to send message to OpenAI API
+// Function to send message to Cloudflare Worker (which calls OpenAI)
 async function sendToOpenAI(userMessage) {
   try {
     // Check if the message is beauty-related before sending to API
@@ -192,50 +228,49 @@ async function sendToOpenAI(userMessage) {
       return;
     }
 
-    // Debug: Log that we're starting the API call
-    console.log("Sending message to OpenAI:", userMessage);
-    console.log("Using API key:", OPENAI_API_KEY ? "✓ Key loaded" : "✗ No key");
+    // Enhanced debugging: Log more details
+    console.log("🚀 Sending message to Worker:", userMessage);
+    console.log("🌐 Worker URL:", WORKER_URL);
 
     // Show loading message
     addMessage("Thinking...", "ai");
 
-    // ...existing code...
-    const response = await fetch(OPENAI_API_URL, {
+    // Send request to Cloudflare Worker with more detailed error handling
+    const response = await fetch(WORKER_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: userMessage,
-          },
-        ],
-        max_tokens: 500,
-        temperature: 0.7,
+        message: userMessage,
       }),
     });
 
-    // Debug: Log response status
-    console.log("API Response status:", response.status);
+    // Enhanced debugging: Log response details
+    console.log("📡 Worker Response status:", response.status);
+    console.log("📡 Worker Response headers:", response.headers);
 
     // Check if the response is successful
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API Error details:", errorText);
-      throw new Error(`API Error: ${response.status} - ${errorText}`);
+      let errorData;
+      try {
+        errorData = await response.json();
+        console.error("❌ Worker Error JSON:", errorData);
+      } catch (parseError) {
+        const errorText = await response.text();
+        console.error("❌ Worker Error Text:", errorText);
+        errorData = { error: errorText };
+      }
+      throw new Error(
+        `Worker Error: ${response.status} - ${
+          errorData.error || "Unknown error"
+        }`
+      );
     }
 
     // Parse the response
     const data = await response.json();
-    console.log("API Response data:", data);
+    console.log("✅ Worker Response data:", data);
 
     // Remove loading message
     const loadingMessage = chatWindow.lastElementChild;
@@ -244,8 +279,8 @@ async function sendToOpenAI(userMessage) {
     }
 
     // Get the AI response
-    const aiResponse = data.choices[0].message.content;
-    console.log("AI Response:", aiResponse);
+    const aiResponse = data.message;
+    console.log("🤖 AI Response:", aiResponse);
 
     // Add AI response to chat
     addMessage(aiResponse, "ai");
@@ -256,20 +291,26 @@ async function sendToOpenAI(userMessage) {
       chatWindow.removeChild(loadingMessage);
     }
 
-    // Show detailed error message
-    console.error("Error calling OpenAI API:", error);
+    // Enhanced error logging
+    console.error("💥 Error calling Worker:", error);
+    console.error("💥 Error stack:", error.stack);
 
     // More specific error messages for debugging
     let errorMessage = "Sorry, I'm having trouble connecting right now. ";
 
-    if (error.message.includes("401")) {
-      errorMessage += "Please check your API key.";
+    if (error.message.includes("Failed to fetch")) {
+      errorMessage +=
+        "Network connection failed. Check if the Worker is deployed and the URL is correct.";
+    } else if (error.message.includes("401")) {
+      errorMessage += "Authentication issue - API key might be missing.";
     } else if (error.message.includes("429")) {
       errorMessage += "Too many requests - please wait a moment.";
-    } else if (error.message.includes("Network")) {
-      errorMessage += "Network connection issue.";
+    } else if (error.message.includes("500")) {
+      errorMessage += "Server error - check Worker logs.";
+    } else if (error.message.includes("404")) {
+      errorMessage += "Worker not found - check the URL.";
     } else {
-      errorMessage += "Please try again in a moment.";
+      errorMessage += `Error: ${error.message}`;
     }
 
     addMessage(errorMessage, "ai");
@@ -292,9 +333,26 @@ chatForm.addEventListener("submit", async (e) => {
   // Clear input field
   userInput.value = "";
 
-  // Send message to OpenAI API
+  // Send message to Cloudflare Worker (which calls OpenAI)
   await sendToOpenAI(message);
 });
 
-// Initialize the chat when page loads
-initializeChat();
+// Initialize the chat when page loads and test connection
+async function initializeAndTest() {
+  // Initialize chat with welcome message
+  initializeChat();
+
+  // Test Worker connection
+  console.log("🔧 Running connection test...");
+  const connectionWorks = await testWorkerConnection();
+
+  if (!connectionWorks) {
+    console.log("⚠️ Worker connection test failed!");
+    addMessage("⚠️ Connection test failed. Check console for details.", "ai");
+  } else {
+    console.log("✅ Worker connection test passed!");
+  }
+}
+
+// Run initialization and test
+initializeAndTest();
