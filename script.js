@@ -37,9 +37,161 @@ function addMessage(message, sender) {
   }, 100);
 }
 
+// Function to check if a message is related to beauty/L'Oréal topics
+function isBeautyRelated(message) {
+  const beautyKeywords = [
+    // L'Oréal products
+    "loreal",
+    "l'oreal",
+    "makeup",
+    "foundation",
+    "lipstick",
+    "mascara",
+    "eyeshadow",
+    "skincare",
+    "moisturizer",
+    "cleanser",
+    "serum",
+    "toner",
+    "sunscreen",
+    "haircare",
+    "shampoo",
+    "conditioner",
+    "hair",
+    "styling",
+    "color",
+    "fragrance",
+    "perfume",
+    "cologne",
+
+    // Beauty terms
+    "beauty",
+    "cosmetics",
+    "skin",
+    "face",
+    "routine",
+    "product",
+    "brand",
+    "application",
+    "tips",
+    "recommend",
+    "advice",
+    "help",
+    "best",
+    "dry skin",
+    "oily skin",
+    "sensitive skin",
+    "acne",
+    "aging",
+    "coverage",
+    "shade",
+    "color match",
+    "primer",
+    "concealer",
+    "blush",
+    "bronzer",
+    "highlighter",
+    "eyeliner",
+    "brow",
+
+    // General beauty questions
+    "how to",
+    "what is",
+    "which",
+    "where",
+    "when",
+    "why",
+  ];
+
+  // Words that indicate non-beauty topics
+  const nonBeautyKeywords = [
+    "sports",
+    "football",
+    "basketball",
+    "soccer",
+    "tennis",
+    "golf",
+    "politics",
+    "government",
+    "election",
+    "president",
+    "vote",
+    "political",
+    "weather",
+    "temperature",
+    "rain",
+    "snow",
+    "forecast",
+    "news",
+    "current events",
+    "stock",
+    "market",
+    "economy",
+    "technology",
+    "computer",
+    "software",
+    "programming",
+    "coding",
+    "food",
+    "recipe",
+    "cooking",
+    "restaurant",
+    "meal",
+    "travel",
+    "vacation",
+    "flight",
+    "hotel",
+    "destination",
+    "movie",
+    "film",
+    "tv show",
+    "entertainment",
+    "celebrity",
+    "music",
+    "song",
+    "artist",
+    "album",
+    "concert",
+  ];
+
+  const lowerMessage = message.toLowerCase();
+
+  // Check for explicit non-beauty topics first
+  const hasNonBeautyKeywords = nonBeautyKeywords.some((keyword) =>
+    lowerMessage.includes(keyword)
+  );
+
+  if (hasNonBeautyKeywords) {
+    return false;
+  }
+
+  // Check for beauty-related keywords
+  const hasBeautyKeywords = beautyKeywords.some((keyword) =>
+    lowerMessage.includes(keyword)
+  );
+
+  // If it has beauty keywords, it's probably beauty-related
+  if (hasBeautyKeywords) {
+    return true;
+  }
+
+  // For ambiguous questions, let the AI handle it (it has the system prompt)
+  // This catches questions like "Can you help me?" which could be beauty-related
+  return true;
+}
+
 // Function to send message to OpenAI API
 async function sendToOpenAI(userMessage) {
   try {
+    // Check if the message is beauty-related before sending to API
+    if (!isBeautyRelated(userMessage)) {
+      addMessage(
+        "I'm here to help you with L'Oréal products and beauty advice! Is there anything specific about skincare, makeup, or haircare I can assist you with today?",
+        "ai"
+      );
+      return;
+    }
+
     // Debug: Log that we're starting the API call
     console.log("Sending message to OpenAI:", userMessage);
     console.log("Using API key:", OPENAI_API_KEY ? "✓ Key loaded" : "✗ No key");
@@ -47,7 +199,7 @@ async function sendToOpenAI(userMessage) {
     // Show loading message
     addMessage("Thinking...", "ai");
 
-    // Prepare the API request
+    // ...existing code...
     const response = await fetch(OPENAI_API_URL, {
       method: "POST",
       headers: {
