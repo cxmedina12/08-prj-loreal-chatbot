@@ -4,7 +4,7 @@ const userInput = document.getElementById("userInput");
 const chatWindow = document.getElementById("chatWindow");
 
 // Worker URL - this will be your deployed Cloudflare Worker endpoint
-const WORKER_URL = "https://lorealchatbot.cxmedina12.workers.dev/";
+const WORKER_URL = "https://project8loreal.cxmedina12.workers.dev";
 
 // Test function to check if Worker is responding
 async function testWorkerConnection() {
@@ -27,6 +27,16 @@ async function testWorkerConnection() {
     if (response.ok) {
       const data = await response.json();
       console.log("✅ Worker response data:", data);
+
+      // Check if the response contains an error (like missing API key)
+      if (data.error) {
+        console.log("❌ Worker returned an error:", data.error);
+        if (data.error.message && data.error.message.includes("API key")) {
+          console.log("💡 OpenAI API key is not configured in the worker");
+        }
+        return false;
+      }
+
       return true;
     } else {
       const errorText = await response.text();
@@ -62,7 +72,7 @@ function initializeChat() {
 
   // Add welcome message as AI response
   addMessage(
-    "👋 Hello! I'm your L'Oréal beauty advisor. How can I help you with makeup, skincare, haircare, or beauty routines today?",
+    "👋 Hello! I'm your dedicated L'Oréal Paris beauty advisor. I can help you discover the perfect L'Oréal products for makeup, skincare, and haircare, plus share expert tips and routines. What L'Oréal beauty questions can I answer for you today?",
     "ai"
   );
 }
@@ -238,7 +248,7 @@ async function sendToOpenAI(userMessage) {
     // Check if the message is beauty-related before sending to API
     if (!isBeautyRelated(userMessage)) {
       addMessage(
-        "I'm here to help you with L'Oréal products and beauty advice! Is there anything specific about skincare, makeup, or haircare I can assist you with today?",
+        "I'm a specialized L'Oréal beauty advisor and can only assist with L'Oréal products, skincare routines, makeup tips, and haircare recommendations. Is there anything specific about L'Oréal Paris products I can help you with today?",
         "ai"
       );
       return;
@@ -294,8 +304,33 @@ async function sendToOpenAI(userMessage) {
       chatWindow.removeChild(loadingMessage);
     }
 
-    // Get the AI response
-    const aiResponse = data.message;
+    // Check if the response contains an error (OpenAI API error)
+    if (data.error) {
+      console.error("❌ OpenAI API Error:", data.error);
+
+      // Handle specific OpenAI errors
+      if (data.error.message && data.error.message.includes("API key")) {
+        addMessage(
+          "⚠️ The AI service is not properly configured. Using fallback mode. " +
+            generateFallbackResponse(userMessage),
+          "ai"
+        );
+        return;
+      } else {
+        addMessage(
+          "⚠️ AI service error. Using fallback mode. " +
+            generateFallbackResponse(userMessage),
+          "ai"
+        );
+        return;
+      }
+    }
+
+    // Get the AI response - make sure it exists
+    const aiResponse =
+      data.message ||
+      data.response ||
+      "Sorry, I didn't receive a proper response.";
     console.log("🤖 AI Response:", aiResponse);
 
     // Add AI response to chat
@@ -342,36 +377,47 @@ async function sendToOpenAI(userMessage) {
 function generateFallbackResponse(userMessage) {
   const lowerMessage = userMessage.toLowerCase();
 
-  // Simple keyword-based responses for common beauty questions
+  // Simple keyword-based responses for common L'Oréal beauty questions
   if (
     lowerMessage.includes("foundation") ||
     lowerMessage.includes("makeup base")
   ) {
-    return "For foundation, I recommend considering your skin type first. L'Oréal offers great options like True Match for natural coverage or Infallible for long-lasting wear. Visit a L'Oréal counter for color matching!";
+    return "For foundation, L'Oréal Paris offers excellent options! Try True Match for natural, buildable coverage that matches your skin perfectly, or Infallible 24HR Fresh Wear for long-lasting, full coverage. Visit a L'Oréal counter for professional color matching!";
   }
 
   if (lowerMessage.includes("skincare") || lowerMessage.includes("routine")) {
-    return "A basic skincare routine should include: cleanser, moisturizer, and SPF in the morning. L'Oréal Paris has excellent products for all skin types. Start with their Revitalift line for anti-aging or Pure-Clay for deep cleansing.";
+    return "L'Oréal Paris has complete skincare solutions! For a basic routine, try: morning - Revitalift Derm Intensives Vitamin C Serum, then Revitalift Anti-Wrinkle Moisturizer with SPF. Evening - Pure-Clay Detox Cleanser, then Age Perfect Night Cream. All L'Oréal Paris products work beautifully together!";
   }
 
   if (lowerMessage.includes("lipstick") || lowerMessage.includes("lip")) {
-    return "L'Oréal offers amazing lip products! Try Rouge Signature for a liquid lipstick that lasts all day, or Color Riche for creamy, nourishing formula. What shade are you looking for?";
+    return "L'Oréal Paris lip products are amazing! For long-lasting color, try Rouge Signature Matte Liquid Lipstick - it's lightweight and stays put all day. For creamy, nourishing coverage, Color Riche Lipstick offers beautiful shades with moisturizing ingredients. What color family are you interested in?";
   }
 
   if (lowerMessage.includes("hair") || lowerMessage.includes("shampoo")) {
-    return "L'Oréal Paris hair care has solutions for every hair type! Elvive is great for daily care, while Feria offers beautiful hair color options. What's your hair type and main concern?";
+    return "L'Oréal Paris Elvive has targeted solutions for every hair concern! For damaged hair, try Total Repair 5. For volume, use Volume Filler. For color-treated hair, Color Vibrancy is perfect. Each line includes shampoo, conditioner, and treatments for complete hair care.";
   }
 
   if (lowerMessage.includes("dry skin")) {
-    return "For dry skin, try L'Oréal's Hydra Genius moisturizer with hyaluronic acid, or the Age Perfect line which provides intense hydration while fighting signs of aging.";
+    return "For dry skin, L'Oréal Paris Hydra Genius Daily Moisturizer with Hyaluronic Acid provides lasting hydration. Also try Age Perfect Hydra-Nutrition Golden Balm for intense moisture and anti-aging benefits. Both are formulated specifically for dry skin concerns.";
   }
 
   if (lowerMessage.includes("oily skin")) {
-    return "For oily skin, I recommend L'Oréal's Pure-Clay line with charcoal and eucalyptus. The cleanser and mask work great together to control oil and minimize pores.";
+    return "L'Oréal Paris Pure-Clay line is perfect for oily skin! The Detox & Brighten Cleanser with charcoal removes impurities, while the Clarify & Smooth Mask minimizes pores. Use the Oil-Free Moisturizer to hydrate without adding shine.";
   }
 
-  // Generic helpful response
-  return "While I'm having technical difficulties, I'd love to help with your beauty questions! L'Oréal offers comprehensive ranges for makeup, skincare, and haircare. Could you tell me more specifically what you're looking for?";
+  if (lowerMessage.includes("mascara")) {
+    return "L'Oréal Paris mascaras are iconic! Voluminous Lash Paradise gives dramatic volume and length, while Telescopic creates precise, separated lashes. For waterproof options, both formulas come in waterproof versions that last all day.";
+  }
+
+  if (
+    lowerMessage.includes("anti-aging") ||
+    lowerMessage.includes("wrinkles")
+  ) {
+    return "L'Oréal Paris Revitalift line targets aging concerns beautifully! The Derm Intensives Micro Hyaluronic Acid Serum plumps fine lines, while Revitalift Triple Power moisturizer firms, smooths, and brightens. For eyes, try Age Perfect Eye Renewal.";
+  }
+
+  // Generic helpful response focused on L'Oréal
+  return "I'm here to help you discover the perfect L'Oréal Paris products! L'Oréal offers comprehensive ranges for makeup, skincare, and haircare - all backed by advanced research and beautiful results. Could you tell me more about what specific L'Oréal products or beauty concerns you'd like help with?";
 }
 
 /* Handle form submit */
@@ -412,7 +458,7 @@ async function initializeAndTest() {
   } else {
     console.log("✅ Worker connection test passed!");
     addMessage(
-      "✅ All systems ready! I'm connected and ready to help with your beauty questions.",
+      "✅ All systems ready! I'm fully connected and ready to help you discover amazing L'Oréal Paris products and beauty solutions.",
       "ai"
     );
   }

@@ -1,5 +1,3 @@
-// Copy this code into your Cloudflare Worker script
-
 export default {
   async fetch(request, env) {
     const corsHeaders = {
@@ -14,17 +12,35 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    const apiKey = env.OPENAI_API_KEY; // Make sure to name your secret OPENAI_API_KEY in the Cloudflare Workers dashboard
-    const apiUrl = "https://api.openai.com/v1/chat/completions";
-    const userInput = await request.json();
+    // Check for API key
+    const apiKey = env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "API key not configured" }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
 
+    // Parse incoming JSON request
+    let userInput;
+    try {
+      userInput = await request.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON in request body" }),
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    // Prepare OpenAI request payload
     const requestBody = {
-      model: "gpt-4o",
-      messages: userInput.messages,
-      max_completion_tokens: 300,
+      model: "gpt-4o-mini",         // Change to "gpt-4o" if desired
+      messages: userInput.messages, // expects { messages: [...] }
+      max_tokens: 300,
     };
 
-    const response = await fetch(apiUrl, {
+    // Call OpenAI API
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -35,6 +51,7 @@ export default {
 
     const data = await response.json();
 
+    // Return response with CORS headers
     return new Response(JSON.stringify(data), { headers: corsHeaders });
   },
 };

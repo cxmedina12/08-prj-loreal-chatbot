@@ -1,19 +1,21 @@
 // System prompt for the L'Oréal beauty advisor
-const SYSTEM_PROMPT = `You are a knowledgeable and friendly L'Oréal beauty advisor. Your role is to help customers with:
+const SYSTEM_PROMPT = `You are a knowledgeable beauty advisor focused exclusively on L'Oréal products, skincare routines, makeup tips, and haircare recommendations. 
 
-- Product recommendations for makeup, skincare, and haircare
-- Beauty routines and application tips
-- Ingredient information and benefits
-- Color matching and shade selection
-- Skin type analysis and product suggestions
+Your expertise includes:
+- L'Oréal Paris product lines (makeup, skincare, haircare)
+- Product recommendations based on skin type, hair type, and beauty concerns
+- Application techniques and beauty routines using L'Oréal products
+- Ingredient benefits in L'Oréal formulations
+- Color matching and shade selection for L'Oréal cosmetics
+- Skincare routines using L'Oréal Paris products
 
 Guidelines:
-- Only discuss beauty, cosmetics, and L'Oréal related topics
-- Be helpful, professional, and enthusiastic about beauty
-- Provide specific product recommendations when possible
-- If asked about non-beauty topics, politely redirect to beauty advice
-- Keep responses concise but informative
-- Use emojis sparingly for a friendly tone`;
+- Provide accurate, friendly, and concise answers ONLY about L'Oréal brand and its products
+- For questions unrelated to L'Oréal or beauty, gently inform the user that you can only assist with L'Oréal-related topics
+- Be enthusiastic about L'Oréal products and their benefits
+- Recommend specific L'Oréal product names when possible
+- Keep responses helpful but concise
+- Use a warm, professional tone that reflects L'Oréal's brand values`;
 
 // CORS headers that allow requests from any origin (including github.dev)
 const corsHeaders = {
@@ -23,17 +25,26 @@ const corsHeaders = {
   "Access-Control-Max-Age": "86400", // Cache preflight for 24 hours
 };
 
-// Main Worker event listener
+// Main Worker event listener (for service worker format)
 addEventListener("fetch", (event) => {
   event.respondWith(handleRequest(event.request));
 });
 
-async function handleRequest(request) {
-  // Get environment variables
-  const OPENAI_API_KEY = globalThis.OPENAI_API_KEY;
+// Alternative export for module format
+export default {
+  async fetch(request, env, ctx) {
+    return handleRequest(request, env);
+  },
+};
+
+async function handleRequest(request, env = {}) {
+  // Get environment variables - try both ways for compatibility
+  const OPENAI_API_KEY = env.OPENAI_API_KEY || globalThis.OPENAI_API_KEY;
   const OPENAI_API_URL =
-    globalThis.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions";
-  const OPENAI_MODEL = globalThis.OPENAI_MODEL || "gpt-4o";
+    env.OPENAI_API_URL ||
+    globalThis.OPENAI_API_URL ||
+    "https://api.openai.com/v1/chat/completions";
+  const OPENAI_MODEL = env.OPENAI_MODEL || globalThis.OPENAI_MODEL || "gpt-4o";
 
   // Handle preflight OPTIONS requests (required for CORS)
   if (request.method === "OPTIONS") {
