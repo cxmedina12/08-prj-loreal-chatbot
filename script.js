@@ -31,10 +31,26 @@ async function testWorkerConnection() {
     } else {
       const errorText = await response.text();
       console.log("❌ Worker error response:", errorText);
+
+      // Check for specific errors
+      if (response.status === 404) {
+        console.log("💡 Worker might not be deployed yet");
+      } else if (response.status === 500) {
+        console.log("💡 Worker might be missing API key configuration");
+      }
+
       return false;
     }
   } catch (error) {
     console.log("❌ Failed to connect to Worker:", error.message);
+
+    // Check for specific connection errors
+    if (error.message.includes("Failed to fetch")) {
+      console.log(
+        "💡 Network error - Worker might not be deployed or URL is incorrect"
+      );
+    }
+
     return false;
   }
 }
@@ -295,12 +311,17 @@ async function sendToOpenAI(userMessage) {
     console.error("💥 Error calling Worker:", error);
     console.error("💥 Error stack:", error.stack);
 
-    // More specific error messages for debugging
-    let errorMessage = "Sorry, I'm having trouble connecting right now. ";
+    // Provide fallback response when Worker is not available
+    let errorMessage = "I'm currently having connection issues. ";
 
     if (error.message.includes("Failed to fetch")) {
       errorMessage +=
-        "Network connection failed. Check if the Worker is deployed and the URL is correct.";
+        "However, I can still help you with L'Oréal beauty advice! ";
+
+      // Provide a helpful fallback response based on the user's message
+      const fallbackResponse = generateFallbackResponse(userMessage);
+      addMessage(errorMessage + fallbackResponse, "ai");
+      return;
     } else if (error.message.includes("401")) {
       errorMessage += "Authentication issue - API key might be missing.";
     } else if (error.message.includes("429")) {
@@ -315,6 +336,42 @@ async function sendToOpenAI(userMessage) {
 
     addMessage(errorMessage, "ai");
   }
+}
+
+// Generate a simple fallback response when the AI service is not available
+function generateFallbackResponse(userMessage) {
+  const lowerMessage = userMessage.toLowerCase();
+
+  // Simple keyword-based responses for common beauty questions
+  if (
+    lowerMessage.includes("foundation") ||
+    lowerMessage.includes("makeup base")
+  ) {
+    return "For foundation, I recommend considering your skin type first. L'Oréal offers great options like True Match for natural coverage or Infallible for long-lasting wear. Visit a L'Oréal counter for color matching!";
+  }
+
+  if (lowerMessage.includes("skincare") || lowerMessage.includes("routine")) {
+    return "A basic skincare routine should include: cleanser, moisturizer, and SPF in the morning. L'Oréal Paris has excellent products for all skin types. Start with their Revitalift line for anti-aging or Pure-Clay for deep cleansing.";
+  }
+
+  if (lowerMessage.includes("lipstick") || lowerMessage.includes("lip")) {
+    return "L'Oréal offers amazing lip products! Try Rouge Signature for a liquid lipstick that lasts all day, or Color Riche for creamy, nourishing formula. What shade are you looking for?";
+  }
+
+  if (lowerMessage.includes("hair") || lowerMessage.includes("shampoo")) {
+    return "L'Oréal Paris hair care has solutions for every hair type! Elvive is great for daily care, while Feria offers beautiful hair color options. What's your hair type and main concern?";
+  }
+
+  if (lowerMessage.includes("dry skin")) {
+    return "For dry skin, try L'Oréal's Hydra Genius moisturizer with hyaluronic acid, or the Age Perfect line which provides intense hydration while fighting signs of aging.";
+  }
+
+  if (lowerMessage.includes("oily skin")) {
+    return "For oily skin, I recommend L'Oréal's Pure-Clay line with charcoal and eucalyptus. The cleanser and mask work great together to control oil and minimize pores.";
+  }
+
+  // Generic helpful response
+  return "While I'm having technical difficulties, I'd love to help with your beauty questions! L'Oréal offers comprehensive ranges for makeup, skincare, and haircare. Could you tell me more specifically what you're looking for?";
 }
 
 /* Handle form submit */
@@ -348,92 +405,18 @@ async function initializeAndTest() {
 
   if (!connectionWorks) {
     console.log("⚠️ Worker connection test failed!");
-    addMessage("⚠️ Connection test failed. Check console for details.", "ai");
+    addMessage(
+      "⚠️ I'm currently running in offline mode due to connection issues. I can still provide basic L'Oréal beauty advice, but responses will be limited. For full AI-powered assistance, please check the console for deployment details.",
+      "ai"
+    );
   } else {
     console.log("✅ Worker connection test passed!");
-  }
-}
-
-// Run initialization and test
-initializeAndTest();
-  if (!connectionWorks) {
-    console.log("⚠️ Worker connection test failed!");
-    addMessage("⚠️ Connection test failed. Check console for details.", "ai");
-  } else {
-    console.log("✅ Worker connection test passed!");
-  }
-}
-
-// Run initialization and test
-initializeAndTest();
-=======
-  // Get user message
-  const message = userInput.value.trim();
-  if (!message) return;
-
-  // Show user message in chat window
-  appendMessage(message, "user");
-  userInput.value = "";
-
-  // Show loading message
-  appendMessage("Thinking...", "ai", true);
-
-  // Prepare messages for OpenAI API
-  const messages = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: message },
-  ];
-
-  try {
-    // Call OpenAI API (gpt-4o)
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: messages,
-        max_tokens: 300,
-      }),
-    });
-
-    const data = await response.json();
-    // Remove loading message
-    removeLoading();
-
-    // Show AI response
-    if (data.choices && data.choices[0] && data.choices[0].message) {
-      appendMessage(data.choices[0].message.content, "ai");
-    } else {
-      appendMessage(
-        "Sorry, I couldn't get a response. Please try again.",
-        "ai"
-      );
-    }
-  } catch (err) {
-    removeLoading();
-    appendMessage(
-      "Error connecting to OpenAI. Please check your API key and try again.",
+    addMessage(
+      "✅ All systems ready! I'm connected and ready to help with your beauty questions.",
       "ai"
     );
   }
-});
-
-// Helper: Add a message to the chat window
-function appendMessage(text, sender, isLoading = false) {
-  const msgDiv = document.createElement("div");
-  msgDiv.className = `msg ${sender}`;
-  if (isLoading) msgDiv.classList.add("loading");
-  msgDiv.textContent = text;
-  chatWindow.appendChild(msgDiv);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-// Helper: Remove loading message
-function removeLoading() {
-  const loadingMsg = chatWindow.querySelector(".msg.ai.loading");
-  if (loadingMsg) loadingMsg.remove();
-}
->>>>>>> origin/main
+// Run initialization and test when page loads
+initializeAndTest();

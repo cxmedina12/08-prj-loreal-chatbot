@@ -15,14 +15,13 @@ Guidelines:
 - Keep responses concise but informative
 - Use emojis sparingly for a friendly tone`;
 
-// Handle CORS for browser requests
-function getCorsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
-}
+// CORS headers that allow requests from any origin (including github.dev)
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400", // Cache preflight for 24 hours
+};
 
 // Main Worker event listener
 addEventListener("fetch", (event) => {
@@ -30,14 +29,20 @@ addEventListener("fetch", (event) => {
 });
 
 async function handleRequest(request) {
-  const corsHeaders = getCorsHeaders();
+  // Get environment variables
+  const OPENAI_API_KEY = globalThis.OPENAI_API_KEY;
+  const OPENAI_API_URL =
+    globalThis.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions";
+  const OPENAI_MODEL = globalThis.OPENAI_MODEL || "gpt-4o";
 
-  // Handle preflight requests (CORS)
+  // Handle preflight OPTIONS requests (required for CORS)
   if (request.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, {
+      headers: corsHeaders,
+    });
   }
 
-  // Only allow POST requests
+  // Only allow POST requests for actual chat
   if (request.method !== "POST") {
     return new Response("Method not allowed", {
       status: 405,
@@ -63,6 +68,23 @@ async function handleRequest(request) {
           ...corsHeaders,
         },
       });
+    }
+
+    // Check if API key is available
+    if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY environment variable is not set");
+      return new Response(
+        JSON.stringify({
+          error: "API key not configured",
+        }),
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        }
+      );
     }
 
     // Call OpenAI API with the user's message
@@ -111,7 +133,7 @@ async function handleRequest(request) {
     const openaiData = await openaiResponse.json();
     const aiMessage = openaiData.choices[0].message.content;
 
-    // Return the AI response to the client
+    // Return the AI response with CORS headers
     return new Response(
       JSON.stringify({
         message: aiMessage,
@@ -132,14 +154,6 @@ async function handleRequest(request) {
       }),
       {
         status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      }
-    );
-  }
-}
         headers: {
           "Content-Type": "application/json",
           ...corsHeaders,
